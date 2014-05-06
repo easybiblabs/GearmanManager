@@ -631,72 +631,7 @@ abstract class GearmanManager {
 
                     $function = substr(basename($file), 0, -4);
 
-                    /**
-                     * include workers
-                     */
-                    if (!empty($this->config['include'])) {
-                        if (!in_array($function, $this->config['include'])) {
-                            continue;
-                        }
-                    }
-
-                    /**
-                     * exclude workers
-                     */
-                    if (in_array($function, $this->config['exclude'])) {
-                        continue;
-                    }
-
-                    if(!isset($this->functions[$function])){
-                        $this->functions[$function] = array();
-                    }
-
-                    if(!empty($this->config['functions'][$function]['dedicated_only'])){
-
-                        if(empty($this->config['functions'][$function]['dedicated_count'])){
-                            $this->log("Invalid configuration for dedicated_count for function $function.", GearmanManager::LOG_LEVEL_PROC_INFO);
-                            exit();
-                        }
-
-                        $this->functions[$function]['dedicated_only'] = true;
-                        $this->functions[$function]["count"] = $this->config['functions'][$function]['dedicated_count'];
-
-                    } else {
-
-                        $min_count = max($this->do_all_count, 1);
-                        if(!empty($this->config['functions'][$function]['count'])){
-                            $min_count = max($this->config['functions'][$function]['count'], $this->do_all_count);
-                        }
-
-                        if(!empty($this->config['functions'][$function]['dedicated_count'])){
-                            $ded_count = $this->do_all_count + $this->config['functions'][$function]['dedicated_count'];
-                        } elseif(!empty($this->config["dedicated_count"])){
-                            $ded_count = $this->do_all_count + $this->config["dedicated_count"];
-                        } else {
-                            $ded_count = $min_count;
-                        }
-
-                        $this->functions[$function]["count"] = max($min_count, $ded_count);
-
-                    }
-
-                    $this->functions[$function]['path'] = $file;
-
-                    /**
-                     * Note about priority. This exploits an undocumented feature
-                     * of the gearman daemon. This will only work as long as the
-                     * current behavior of the daemon remains the same. It is not
-                     * a defined part fo the protocol.
-                     */
-                    if(!empty($this->config['functions'][$function]['priority'])){
-                        $priority = max(min(
-                            $this->config['functions'][$function]['priority'],
-                            self::MAX_PRIORITY), self::MIN_PRIORITY);
-                    } else {
-                        $priority = 0;
-                    }
-
-                    $this->functions[$function]['priority'] = $priority;
+                    $this->add_worker($function, $file);
 
                 }
             }
@@ -931,6 +866,90 @@ abstract class GearmanManager {
                     "start_time" => time(),
                 );
         }
+
+    }
+
+    /**
+     * Add a worker function to the list of workers
+     *
+     * @param string $function
+     * @param string $file
+     */
+    protected function add_worker($function, $file)
+    {
+        /**
+         * include workers
+         */
+        if (!empty($this->config['include'])) {
+            if (!in_array($function, $this->config['include'])) {
+                return;
+            }
+        }
+
+        /**
+         * exclude workers
+         */
+        if (in_array($function, $this->config['exclude'])) {
+            return;
+        }
+
+        if (!isset($this->functions[$function])) {
+            $this->functions[$function] = array();
+        }
+
+        if (!empty($this->config['functions'][$function]['dedicated_only'])) {
+
+            if (empty($this->config['functions'][$function]['dedicated_count'])) {
+                $this->log(
+                    "Invalid configuration for dedicated_count for function $function.",
+                    GearmanManager::LOG_LEVEL_PROC_INFO
+                );
+                exit();
+            }
+
+            $this->functions[$function]['dedicated_only'] = true;
+            $this->functions[$function]["count"] = $this->config['functions'][$function]['dedicated_count'];
+
+        } else {
+
+            $min_count = max($this->do_all_count, 1);
+            if (!empty($this->config['functions'][$function]['count'])) {
+                $min_count = max($this->config['functions'][$function]['count'], $this->do_all_count);
+            }
+
+            if (!empty($this->config['functions'][$function]['dedicated_count'])) {
+                $ded_count = $this->do_all_count + $this->config['functions'][$function]['dedicated_count'];
+            } elseif (!empty($this->config["dedicated_count"])) {
+                $ded_count = $this->do_all_count + $this->config["dedicated_count"];
+            } else {
+                $ded_count = $min_count;
+            }
+
+            $this->functions[$function]["count"] = max($min_count, $ded_count);
+
+        }
+
+        $this->functions[$function]['path'] = $file;
+
+        /**
+         * Note about priority. This exploits an undocumented feature
+         * of the gearman daemon. This will only work as long as the
+         * current behavior of the daemon remains the same. It is not
+         * a defined part fo the protocol.
+         */
+        if (!empty($this->config['functions'][$function]['priority'])) {
+            $priority = max(
+                min(
+                    $this->config['functions'][$function]['priority'],
+                    self::MAX_PRIORITY
+                ),
+                self::MIN_PRIORITY
+            );
+        } else {
+            $priority = 0;
+        }
+
+        $this->functions[$function]['priority'] = $priority;
 
     }
 
@@ -1170,5 +1189,3 @@ abstract class GearmanManager {
     }
 
 }
-
-?>
